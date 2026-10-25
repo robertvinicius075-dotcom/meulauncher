@@ -81,6 +81,66 @@ body.em-inicio .arte {
     height: 100%;
 }
 
+.foto-fundo {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    background-color: #181a22;
+    background-position: center center;
+    background-repeat: no-repeat;
+    -webkit-background-size: cover;
+    background-size: cover;
+}
+
+.arte.modo-foto .slide {
+    display: none;
+}
+
+.arte.modo-foto .foto-fundo {
+    display: block;
+}
+
+body.fundo-preto,
+body.fundo-preto html {
+    background: #000000;
+}
+
+body.fundo-preto .arte {
+    display: none;
+}
+
+body.fundo-preto .pontos,
+body.fundo-foto .pontos {
+    display: none;
+}
+
+.aviso-fundo {
+    position: absolute;
+    right: var(--lateral);
+    top: 6.4rem;
+    z-index: 5;
+    padding: 0.5rem 1.1rem;
+    border-radius: 1.4rem;
+    background: rgba(0,0,0,0.72);
+    color: #ffffff;
+    font-size: 1.1rem;
+    opacity: 0;
+    -webkit-transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.aviso-fundo.mostra {
+    opacity: 1;
+}
+
+.botao-fundo {
+    margin-right: 0.9rem;
+}
+
 .arte-sombra {
     position: absolute;
     top: 0;
@@ -683,8 +743,10 @@ h1 {
         </svg>
     </div>
 
+    <div class="foto-fundo" id="foto-fundo"></div>
     <div class="arte-sombra"></div>
 </div>
+<div class="aviso-fundo" id="aviso-fundo"></div>
 
 <header class="topo">
     <div class="topo-esq">
@@ -699,6 +761,13 @@ h1 {
         </nav>
     </div>
     <div class="topo-dir">
+        <div class="botao-config botao-fundo item" tabindex="0" id="btn-fundo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
+                <rect x="3" y="4.5" width="18" height="15" rx="2.5"/>
+                <circle cx="9" cy="10" r="1.7"/>
+                <path d="M3.5 17 L9 12.5 L13 16 L16 13.5 L20.5 17.5"/>
+            </svg>
+        </div>
         <div class="botao-config item" tabindex="0" id="btn-config">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
                 <circle cx="12" cy="12" r="8" stroke-width="2.4" stroke-dasharray="2.1 1.1"/>
@@ -793,6 +862,9 @@ var ENGRENAGEM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor">' +
 var ultimaLista = '';
 var iconeCache = {};
 var abaAtual = 'inicio';
+var modoFundo = 'cenas';
+var listaFotos = [];
+var timerAviso = null;
 var slideAtual = 0;
 var timerSlide = null;
 
@@ -1085,7 +1157,7 @@ function pararRotacao() {
 function iniciarRotacao() {
     pararRotacao();
     timerSlide = setInterval(function () {
-        if (!document.hidden) {
+        if (!document.hidden && modoFundo === 'cenas') {
             mostrarSlide(slideAtual + 1);
         }
     }, 9000);
@@ -1178,7 +1250,7 @@ function mover(direcao) {
     // Subindo ate o menu: volta sempre para a aba que esta aberta
     // (a engrenagem se alcanca com a seta para a direita)
     if (direcao === 'up' && melhor &&
-            (melhor.classList.contains('tab') || melhor.id === 'btn-config')) {
+            (melhor.classList.contains('tab') || melhor.id === 'btn-config' || melhor.id === 'btn-fundo')) {
         melhor = document.querySelector('.tab.sel') || melhor;
     }
 
@@ -1221,11 +1293,131 @@ document.addEventListener('keydown', function (evento) {
     }
 }, false);
 
+/* ---------- Fundo: cenas, preto ou foto sua (pasta assets/fundos) ---------- */
+
+function lerFotos() {
+    var lista = [];
+    try {
+        if (window.Android && window.Android.fundos) {
+            lista = JSON.parse(window.Android.fundos());
+        }
+    } catch (e) {
+        lista = [];
+    }
+    return lista;
+}
+
+function nomeBonito(arquivo) {
+    return String(arquivo).replace(/\.[A-Za-z0-9]+$/, '');
+}
+
+function avisoFundo(texto) {
+    var el = document.getElementById('aviso-fundo');
+    el.textContent = texto;
+    el.classList.add('mostra');
+    if (timerAviso) {
+        clearTimeout(timerAviso);
+    }
+    timerAviso = setTimeout(function () {
+        el.classList.remove('mostra');
+    }, 2600);
+}
+
+function aplicarFundo(modo) {
+    var arte = document.querySelector('.arte');
+    var foto = document.getElementById('foto-fundo');
+    var corpo = document.body;
+
+    corpo.classList.remove('fundo-preto');
+    corpo.classList.remove('fundo-foto');
+    arte.classList.remove('modo-foto');
+    modoFundo = modo;
+
+    if (modo === 'preto') {
+        corpo.classList.add('fundo-preto');
+    } else if (modo.indexOf('foto:') === 0) {
+        var arquivo = modo.substring(5);
+        foto.style.backgroundImage = "url('fundos/" + encodeURIComponent(arquivo) + "')";
+        arte.classList.add('modo-foto');
+        corpo.classList.add('fundo-foto');
+        var teste = new Image();
+        teste.onerror = function () {
+            if (modoFundo === modo) {
+                aplicarFundo('cenas');
+                avisoFundo('Nao consegui abrir essa foto');
+            }
+        };
+        teste.src = 'fundos/' + encodeURIComponent(arquivo);
+    } else {
+        modoFundo = 'cenas';
+    }
+
+    if (modoFundo !== 'cenas') {
+        mostrarSlide(0);
+    }
+
+    try {
+        localStorage.setItem('fundo', modoFundo);
+    } catch (e) {}
+}
+
+function opcoesFundo() {
+    var o = ['cenas', 'preto'];
+    for (var i = 0; i < listaFotos.length; i++) {
+        o.push('foto:' + listaFotos[i]);
+    }
+    return o;
+}
+
+function textoFundo(modo) {
+    if (modo === 'preto') {
+        return 'Fundo: tudo preto';
+    }
+    if (modo.indexOf('foto:') === 0) {
+        return 'Fundo: ' + nomeBonito(modo.substring(5));
+    }
+    return 'Fundo: cenas do launcher';
+}
+
+function proximoFundo() {
+    var o = opcoesFundo();
+    var i = 0;
+    for (var k = 0; k < o.length; k++) {
+        if (o[k] === modoFundo) {
+            i = k;
+        }
+    }
+    var novo = o[(i + 1) % o.length];
+    aplicarFundo(novo);
+    avisoFundo(textoFundo(modoFundo));
+}
+
+function iniciarFundo() {
+    listaFotos = lerFotos();
+    var salvo = 'cenas';
+    try {
+        salvo = localStorage.getItem('fundo') || 'cenas';
+    } catch (e) {}
+    var o = opcoesFundo();
+    var existe = false;
+    for (var k = 0; k < o.length; k++) {
+        if (o[k] === salvo) {
+            existe = true;
+        }
+    }
+    aplicarFundo(existe ? salvo : 'cenas');
+}
+
+document.getElementById('btn-fundo').onclick = function () {
+    proximoFundo();
+};
+
 document.getElementById('btn-config').onclick = function () {
     abrirApp('__config__');
 };
 
 document.addEventListener('DOMContentLoaded', function () {
+    iniciarFundo();
     carregarApps(true);
     iniciarRotacao();
 });
