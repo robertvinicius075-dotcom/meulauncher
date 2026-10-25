@@ -132,6 +132,11 @@ public class HomeActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String fundos() {
+            return listarFundosJson();
+        }
+
+        @JavascriptInterface
         public void settings() {
             runOnUiThread(new Runnable() {
                 @Override
@@ -195,6 +200,27 @@ public class HomeActivity extends Activity {
             }
         } catch (Exception erro) {
             // devolve o que conseguiu montar
+        }
+        return resultado.toString();
+    }
+
+    // Fotos de fundo: arquivos colocados na pasta app/src/main/assets/fundos
+    private String listarFundosJson() {
+        JSONArray resultado = new JSONArray();
+        try {
+            String[] arquivos = getAssets().list("fundos");
+            if (arquivos != null) {
+                java.util.Arrays.sort(arquivos);
+                for (String nome : arquivos) {
+                    String minusculo = nome.toLowerCase(Locale.ROOT);
+                    if (minusculo.endsWith(".jpg") || minusculo.endsWith(".jpeg")
+                            || minusculo.endsWith(".png") || minusculo.endsWith(".webp")) {
+                        resultado.put(nome);
+                    }
+                }
+            }
+        } catch (Exception erro) {
+            // sem fotos: so as opcoes "cenas" e "preto"
         }
         return resultado.toString();
     }
